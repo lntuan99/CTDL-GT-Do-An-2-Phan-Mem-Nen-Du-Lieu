@@ -33,10 +33,10 @@ public:
 	void writeFileEncode();
 
 	//ĐỌc file nén
-	void readFileDecode(unsigned char*&, char&);
+	void readFileDecode(FILE*&, char&);
 
 	//Ghi file giải nén
-	void writeFileDecode(unsigned char*, char);
+	void writeFileDecode(FILE*, char);
 
 	//Thực thi
 	void process();

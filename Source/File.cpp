@@ -30,25 +30,25 @@ int File::getCompress() {
 void File::readFileEncode() {
 	//Mở file
 	FILE* fi = fopen(filePathIn.c_str(), "rb");
-	
+
 	if (fi == NULL) {
 		cout << "Cannot open this file to compress!! Please check your file and path file";
 		return;
 	}
-	
+
 	unsigned char c;
 	unsigned long long freq[256];
 
 	//Gán toàn bộ phần tử trong bảng tần số = 0
 	memset(freq, 0, 256 * sizeof(unsigned long long));
-	
+
 	//Đọc toàn bộ byte trong file nén
 	fread(&c, 1, 1, fi);
 	while (!feof(fi)) {
 		++freq[c];
 		fread(&c, 1, 1, fi);
 	}
-	
+
 	//Gán bảng tần số vào cây huffman
 	huffTree.setCharFreq(freq);
 	fclose(fi);
@@ -80,12 +80,9 @@ void File::writeFileEncode() {
 
 	//Ghi bảng tần số lên file nén
 	for (int i = 0; i < 256; ++i) {
-		unsigned char c = i;
 		unsigned long long w = charFreq[i];
 
 		bitSize += w * (*(cnt + i));
-
-		fwrite(&c, sizeof(c), 1, fo);
 		fwrite(&w, sizeof(w), 1, fo);
 	}
 
@@ -102,7 +99,7 @@ void File::writeFileEncode() {
 			*(*(bitCode + i) + j) = *(*(code + i) + j) - '0';
 		}
 	}
-	
+
 	//Tính toán padding
 	char padding = 0;
 
@@ -111,46 +108,55 @@ void File::writeFileEncode() {
 		++padding;
 	}
 
-	bool* temp = new bool[bitSize];
-
 	//Ghi padding và độ dài chuỗi bit đã cộng padding lên file nén
 	fwrite(&bitSize, sizeof(bitSize), 1, fo);
 	fwrite(&padding, sizeof(padding), 1, fo);
-	
-	//Duyệt 
-	int index = 0;
-	unsigned char c;
-	
+
 	//Duyệt lại file để thay thế các kí tự thành mã code tương ứng
 	FILE* fi = fopen(filePathIn.c_str(), "rb");
 
+	//Duyệt 
+	int index = 0;
+	unsigned char c;
+
+	bool temp[8];
+
+	//Đọc lại file cần nén và thay thành mã code tương ứng
 	fread(&c, 1, 1, fi);
 	while (!feof(fi)) {
 		for (int i = 0; i < *(cnt + c); ++i) {
 			*(temp + index++) = *(*(bitCode + c) + i);
+
+			if (index % 8 == 0) {
+				unsigned char ch = 0;
+
+				for (int j = 0; j < 8; ++j)
+					if (temp[j])
+						ch |= (128 >> j);
+				fwrite(&ch, sizeof(ch), 1, fo);
+				index = 0;
+			}
 		}
 		fread(&c, 1, 1, fi);
 	}
 
-	//Cộng các kí tự 0 cho đủ chia hết cho 8
-	for (int i = 0; i < padding; ++i)
-		*(temp + index++) = 0;
+	if (padding != 0) {
+		//Cộng các kí tự 0 cho đủ chia hết cho 8
+		for (int i = 0; i < padding; ++i) {
+			temp[index++] = 0;
+		}
 
-	//Tách 8 bit ra chuyển thành hệ 10 rồi ghi lên file nén
-	for (unsigned long long i = 0; i < bitSize; i += 8) {
-		unsigned char c = 0;
+		unsigned char ch = 0;
 
 		for (int j = 0; j < 8; ++j)
-			if (temp[i + j])
-				c |= (128 >> j);
-
-		fwrite(&c, sizeof(c), 1, fo);
+			if (temp[j])
+				ch |= (128 >> j);
+		fwrite(&ch, sizeof(ch), 1, fo);
 	}
-		
+
 	fclose(fo);
 
 	delete[] cnt;
-	delete[] temp;
 
 	for (int i = 0; i < 256; ++i) {
 		delete[] code[i];
@@ -161,8 +167,8 @@ void File::writeFileEncode() {
 	delete[] bitCode;
 }
 
-void File::readFileDecode(unsigned char*& arrByte, char& padding) {
-	FILE* fi = fopen(filePathIn.c_str() , "rb");
+void File::readFileDecode(FILE*& fi, char& padding) {
+	fi = fopen(filePathIn.c_str(), "rb");
 
 	if (fi == NULL) {
 		cout << "Cannot open this file extract. Please check your file and file path";
@@ -175,30 +181,21 @@ void File::readFileDecode(unsigned char*& arrByte, char& padding) {
 	//Đọc bảng tần số
 	unsigned long long freq[256];
 	for (int i = 0; i < 256; ++i) {
-		unsigned char c;
 		unsigned long long w;
-		fread(&c, sizeof(c), 1, fi);
 		fread(&w, sizeof(w), 1, fi);
 
-		freq[c] = w;
+		freq[i] = w;
 	}
 
 	//Gán bảng tần số vô cây huffman
 	huffTree.setCharFreq(freq);
 
-	//Đọc bit size và padding
+	//đọc bit size và padding
 	fread(&bitSize, sizeof(bitSize), 1, fi);
 	fread(&padding, sizeof(padding), 1, fi);
-
-	arrByte = new unsigned char[bitSize / 8];
-
-	//Đọc chuỗi byte cần giải nén
-	fread(arrByte, bitSize / 8, 1, fi);
-
-	fclose(fi);
 }
 
-void File::writeFileDecode(unsigned char* arrByte, char padding) {
+void File::writeFileDecode(FILE* fi, char padding) {
 	//Mở file để giải nén
 	FILE* fo = fopen((filePathOut + "\\" + nameFile).c_str(), "wb");
 
@@ -207,35 +204,29 @@ void File::writeFileDecode(unsigned char* arrByte, char padding) {
 
 	//Node gốc
 	HuffNode* curr = minHeap.top();
+	unsigned long long d = -1;
 
-	//Đổi chuỗi byte cần nén về hết nhị phân rồi cộng thành chuỗi bit
-	bool* res = new bool[bitSize - padding];
-	int index = 0;
-	for (int i = 0; i < bitSize / 8 - 1; ++i)
-		for (int j = 0; j < 8; ++j)
-			*(res + index++) = (arrByte[i] >> (7 - j)) & 1;
-
-	//Xử lí byte cuối có phần padding
-	int temp = 8 - padding;
-	for (int i = 0; i < temp; ++i)
-		* (res + index++) = (arrByte[bitSize / 8 - 1] >> (7 - i)) & 1;
-	
 	//Chuyển ngược lại từ mã code thành kí tự ban đầu.
-	for (int i = 0; i < bitSize - padding; ++i) {
-		if (*(res + i))
-			curr = curr->right;
-		else
-			curr = curr->left;
+	for (int i = 0; i < bitSize / 8; ++i) {
+		unsigned char Byte;
+		fread(&Byte, 1, 1, fi);
+		for (int j = 0; j < 8; ++j) {
+			++d;
+			if (d < bitSize - padding) {
+				if ((Byte >> (7 - j)) & 1)
+					curr = curr->right;
+				else
+					curr = curr->left;
 
-		if (curr->left == NULL && curr->right == NULL) {
-			fwrite(&(curr->c), sizeof(curr->c), 1, fo);
-			curr = minHeap.top();
+				if (curr->left == NULL && curr->right == NULL) {
+					fwrite(&(curr->c), sizeof(curr->c), 1, fo);
+					curr = minHeap.top();
+				}
+			}
 		}
 	}
 
 	fclose(fo);
-
-	delete[] res;
 }
 
 void File::process() {
@@ -243,13 +234,13 @@ void File::process() {
 	if (compress == 1) {
 		//Đọc file cần nén
 		readFileEncode();
-		
+
 		//Tạo cây
 		huffTree.createMinHeap();
 
 		//Tạo mã code 
 		huffTree.setCharCode(huffTree.getMinHeap().top(), "");
-		 
+
 		//Ghi file nén
 		writeFileEncode();
 	}
@@ -257,11 +248,9 @@ void File::process() {
 	//Giải nén
 	else {
 		char padding;
-		unsigned char* arrByte;
-		char name[50];
-		
+		FILE* fi;
 		//Đọc file nén
-		readFileDecode(arrByte, padding);
+		readFileDecode(fi, padding);
 
 		//Tạo cây
 		huffTree.createMinHeap();
@@ -270,8 +259,8 @@ void File::process() {
 		huffTree.setCharCode(huffTree.getMinHeap().top(), "");
 
 		//Ghi file nén
-		writeFileDecode(arrByte, padding);
+		writeFileDecode(fi, padding);
 
-		delete[] arrByte;
+		fclose(fi);
 	}
 }

@@ -17,7 +17,7 @@ Folder::Folder(string path) {
 
 void Folder::getFolderPath() {
 	string path;
-	
+
 	//Lấy đường dẫn đến folder cần nén
 	rewind(stdin);
 	cout << "Enter file path to the folder needs to be compressed: ";
@@ -57,7 +57,7 @@ void Folder::readFolder() {
 					++nFolder;
 				}
 			}
-			
+
 		}
 		closedir(dir);
 	}
@@ -76,7 +76,7 @@ void Folder::writeHeader(FILE* fo) {
 
 	//Ghi tên folder lên file nén
 	fwrite(&name, 50, 1, fo);
-	
+
 	//Ghi số lượng file trong folder lên file nén
 	fwrite(&nFile, sizeof(nFile), 1, fo);
 
@@ -91,7 +91,7 @@ void Folder::compress(FILE* fo) {
 		memset(charFreq, 0, 256 * sizeof(unsigned long long));
 
 		FILE* file = fopen((folderPath + "\\" + s).c_str(), "rb");
-	
+
 		int len = s.length();
 		char name[50];
 
@@ -101,12 +101,9 @@ void Folder::compress(FILE* fo) {
 		name[len] = '\0';
 		fwrite(&name, 50, 1, fo);
 
-		unsigned long long size = 0;
-
 		unsigned char c;
 		fread(&c, 1, 1, file);
 		while (!feof(file)) {
-			++size;
 			++charFreq[c];
 			fread(&c, 1, 1, file);
 		}
@@ -142,56 +139,68 @@ void Folder::compress(FILE* fo) {
 			fwrite(&w, sizeof(unsigned long long), 1, fo);
 		}
 
- 		char padding = 0;
+		char padding = 0;
 
 		while (bitSize % 8 != 0) {
 			++bitSize;
 			++padding;
 		}
 
-		bool* temp = new bool[bitSize];
-
 		fwrite(&bitSize, sizeof(bitSize), 1, fo);
 		fwrite(&padding, sizeof(padding), 1, fo);
 
-		int index = 0;
+		//Duyệt 
+		bool temp[8];
 
+		//Đọc lại file cần nén và thay thành mã code tương ứng
+		int index = 0;
 		fseek(file, 0, SEEK_SET);
 		fread(&c, 1, 1, file);
 		while (!feof(file)) {
-			for (int i = 0; i < *(cnt + c); ++i)
-				* (temp + index++) = *(*(bitCode + c) + i);
+			for (int i = 0; i < *(cnt + c); ++i) {
+				temp[index++] = *(*(bitCode + c) + i);
+
+				if (index % 8 == 0) {
+					unsigned char ch = 0;
+
+					for (int j = 0; j < 8; ++j)
+						if (temp[j])
+							ch |= (128 >> j);
+					fwrite(&ch, sizeof(ch), 1, fo);
+					index = 0;
+				}
+			}
 
 			fread(&c, 1, 1, file);
 		}
 
 		fclose(file);
 
-		for (int i = 0; i < padding; ++i)
-			* (temp + index++) = 0;
+		if (padding != 0) {
+			//Cộng các kí tự 0 cho đủ chia hết cho 8
+			for (int i = 0; i < padding; ++i) {
+				temp[index++] = 0;
+			}
 
-		for (unsigned long long i = 0; i < bitSize; i += 8) {
-			unsigned char c = 0;
-
+			//xử lí byte cuối cùng
+			unsigned char ch = 0;
 			for (int j = 0; j < 8; ++j)
-				if (temp[i + j])
-					c |= (128 >> j);
-
-			fwrite(&c, sizeof(c), 1, fo);
+				if (temp[j])
+					ch |= (128 >> j);
+			fwrite(&ch, sizeof(ch), 1, fo);
 		}
+
 
 		delete[] cnt;
-		delete[] temp;
 
 		for (int i = 0; i < 256; ++i) {
-			delete code[i];
-			delete bitCode[i];
+			delete[] code[i];
+			delete[] bitCode[i];
 		}
-
 		delete[] code;
 		delete[] bitCode;
 	}
-	
+
 	//Đệ quy đọc folder trong folder r ghi lên file nén
 	for (auto folder : listFolder) {
 		folder->readFolder();
@@ -209,7 +218,7 @@ void Folder::getFileUnCompress() {
 void Folder::uncompress(FILE* fileUnCompress) {
 	char folderName[50];
 	int nFile, nFolder;
-	
+
 	//Đọc tên folder, số lượng file trong folder, số lượng folder trong folder
 	fread(&folderName, 50, 1, fileUnCompress);
 	fread(&nFile, sizeof(nFile), 1, fileUnCompress);
@@ -222,7 +231,7 @@ void Folder::uncompress(FILE* fileUnCompress) {
 	for (int i = 0; i < nFile; ++i) {
 		char name[50];
 		fread(&name, 50, 1, fileUnCompress);
-		
+
 		FILE* file = fopen((uncompressPathFile + "\\" + folderName + "\\" + name).c_str(), "wb");
 
 		unsigned long long freq[256];
@@ -232,6 +241,7 @@ void Folder::uncompress(FILE* fileUnCompress) {
 			freq[i] = w;
 		}
 
+		//Tạo cây huffman
 		HuffmanTree huffTree;
 
 		huffTree.setCharFreq(freq);
@@ -241,50 +251,48 @@ void Folder::uncompress(FILE* fileUnCompress) {
 		unsigned long long bitSize;
 		char padding;
 
+		//đọc bitsize và padding
 		fread(&bitSize, sizeof(bitSize), 1, fileUnCompress);
 		fread(&padding, sizeof(padding), 1, fileUnCompress);
 
-		unsigned char* arrByte = new unsigned char[bitSize / 8];
-
-		fread(arrByte, bitSize / 8, 1, fileUnCompress);
-
-		bool* res = new bool[bitSize - padding];
-		int index = 0;
-		for (int i = 0; i < bitSize / 8 - 1; ++i)
-			for (int j = 0; j < 8; ++j)
-				* (res + index++) = (arrByte[i] >> (7 - j)) & 1;
-
-		int temp = 8 - padding;
-		for (int i = 0; i < temp; ++i)
-			* (res + index++) = (arrByte[bitSize / 8 - 1] >> (7 - i)) & 1;
-
+		//Lấy ra cây min heap
 		priority_queue<HuffNode*, vector<HuffNode*>, Compare> minHeap = huffTree.getMinHeap();
+
+		//Node gốc
 		HuffNode* curr = minHeap.top();
+		unsigned long long d = -1;
 
-		for (int i = 0; i < bitSize - padding; ++i) {
-			if (*(res + i))
-				curr = curr->right;
-			else
-				curr = curr->left;
+		//chuyển mã code về kí tự ban đầu
+		for (int i = 0; i < bitSize / 8; ++i) {
+			unsigned char Byte;
+			fread(&Byte, 1, 1, fileUnCompress);
 
-			if (curr->left == NULL && curr->right == NULL) {
-				fwrite(&(curr->c), sizeof(curr->c), 1, file);
-				curr = minHeap.top();
+			for (int j = 0; j < 8; ++j) {
+				++d;
+				if (d < bitSize - padding) {
+					if ((Byte >> (7 - j)) & 1)
+						curr = curr->right;
+					else
+						curr = curr->left;
+
+					if (curr->left == NULL && curr->right == NULL) {
+						fwrite(&(curr->c), sizeof(curr->c), 1, file);
+						curr = minHeap.top();
+					}
+				}
 			}
 		}
-		
+
 		fclose(file);
-		delete[] arrByte;
-		delete[] res;
 	}
-	
+
 	//Đệ quy để giải nén folder trong folder
 	string temp = uncompressPathFile;
 	uncompressPathFile += "\\";
 	uncompressPathFile += folderName;
 
 	for (int i = 0; i < nFolder; ++i) {
-		uncompress(fileUnCompress); 
+		uncompress(fileUnCompress);
 	}
 
 	uncompressPathFile = temp;

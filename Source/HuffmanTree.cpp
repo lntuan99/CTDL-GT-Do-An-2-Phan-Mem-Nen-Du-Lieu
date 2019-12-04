@@ -3,6 +3,7 @@
 #include <iostream>
 
 void HuffmanTree::createMinHeap() {
+	flag = false;
 	//Kí tự nào có xuất hiện trong file thì thêm vào cây min heap
 	for (int i = 0; i < 256; ++i)
 		if (charFreq[i] != 0)
@@ -12,6 +13,7 @@ void HuffmanTree::createMinHeap() {
 
 	//Thực hiện việc tạo cây. đến khi nào cây chỉ còn 1 nút gốc k có nút con thì dừng 
 	while (minHeap.size() != 1) {
+		flag = true;
 		l = minHeap.top();
 		minHeap.pop();
 
@@ -22,12 +24,12 @@ void HuffmanTree::createMinHeap() {
 	}
 }
 
-void HuffmanTree::countCharFreq() {
-	for (unsigned long long i = 0; i < fileContent.size(); ++i)
-		charFreq[fileContent[i]]++;
-}
-
 void HuffmanTree::setCharCode(HuffNode* root, string str) {
+	if (flag == false) {
+		setOneCode();
+		return;
+	}
+
 	//Nút rỗng thì dừng 
 	if (!root)
 		return;
@@ -36,7 +38,7 @@ void HuffmanTree::setCharCode(HuffNode* root, string str) {
 	if (root->left == NULL && root->right == NULL) {
 		codes[root->c] = str;
 	}
-	
+
 	//Duyệt sang trái + thêm 0
 	setCharCode(root->left, str + "0");
 
@@ -44,13 +46,6 @@ void HuffmanTree::setCharCode(HuffNode* root, string str) {
 	setCharCode(root->right, str + "1");
 }
 
-void HuffmanTree::setFileContent(vector<unsigned char> fct) {
-	fileContent = fct;
-}
-
-vector<unsigned char> HuffmanTree::getFileContent() {
-	return fileContent;
-}
 
 priority_queue<HuffNode*, vector<HuffNode*>, Compare> HuffmanTree::getMinHeap() {
 	return minHeap;
@@ -83,4 +78,8 @@ char** HuffmanTree::getAllCharCode() {
 void HuffmanTree::setCharFreq(unsigned long long p[256]) {
 	for (int i = 0; i < 256; ++i)
 		charFreq[i] = p[i];
+}
+
+void HuffmanTree::setOneCode() {
+	codes[minHeap.top()->c] = "1";
 }
