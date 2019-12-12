@@ -51,26 +51,27 @@ void File::readFileEncode() {
 
 	unsigned long long len = ftell(fi);
 
-	fseek(fi, 0, SEEK_SET);
-
-	while (len >= MAX_BYTE) {
-		fread(fileContent, MAX_BYTE, 1, fi);
-
-		for (unsigned int i = 0; i < MAX_BYTE; ++i)
-			freq[fileContent[i]]++;
-
-		len -= MAX_BYTE;
-	}
-
 	if (len > 0) {
-		fread(fileContent, len, 1, fi);
+		fseek(fi, 0, SEEK_SET);
 
-		for (unsigned int i = 0; i < len; ++i)
-			freq[fileContent[i]]++;
+		while (len >= MAX_BYTE) {
+			fread(fileContent, MAX_BYTE, 1, fi);
+
+			for (unsigned int i = 0; i < MAX_BYTE; ++i)
+				freq[fileContent[i]]++;
+
+			len -= MAX_BYTE;
+		}
+
+		if (len > 0) {
+			fread(fileContent, len, 1, fi);
+
+			for (unsigned int i = 0; i < len; ++i)
+				freq[fileContent[i]]++;
+		}
 	}
 
 	//Gán bảng tần số vào cây huffman
-
 	huffTree.setCharFreq(freq);
 	fclose(fi);
 
@@ -151,90 +152,92 @@ void File::writeFileEncode() {
 	unsigned char* compress = new unsigned char[MAX_BYTE];
 	unsigned long long d = 0;
 
-	fseek(fi, 0, SEEK_SET);
+	if (len > 0) {
+		fseek(fi, 0, SEEK_SET);
 
-	//Đọc lại file cần nén và thay thành mã code tương ứng
-	while (len >= MAX_BYTE) {
-		fread(fileContent, MAX_BYTE, 1, fi);
+		//Đọc lại file cần nén và thay thành mã code tương ứng
+		while (len >= MAX_BYTE) {
+			fread(fileContent, MAX_BYTE, 1, fi);
 
-		for (unsigned int idx = 0; idx < MAX_BYTE; ++idx) {
-			c = fileContent[idx];
+			for (unsigned int idx = 0; idx < MAX_BYTE; ++idx) {
+				c = fileContent[idx];
 
-			for (int i = 0; i < *(cnt + c); ++i) {
-				*(temp + index++) = *(*(bitCode + c) + i);
+				for (int i = 0; i < *(cnt + c); ++i) {
+					*(temp + index++) = *(*(bitCode + c) + i);
 
-				if (index % 8 == 0) {
-					unsigned char ch = 0;
+					if (index % 8 == 0) {
+						unsigned char ch = 0;
 
-					for (int j = 0; j < 8; ++j)
-						if (temp[j])
-							ch |= (128 >> j);
+						for (int j = 0; j < 8; ++j)
+							if (temp[j])
+								ch |= (128 >> j);
 
-					compress[d++] = ch;
-					index = 0;
+						compress[d++] = ch;
+						index = 0;
 
-					if (d == MAX_BYTE) {
-						fwrite(compress, d, 1, fo);
-						d = 0;
+						if (d == MAX_BYTE) {
+							fwrite(compress, d, 1, fo);
+							d = 0;
+						}
+
 					}
+				}
+			}
 
+			len -= MAX_BYTE;
+		}
+
+		if (len > 0 && len < MAX_BYTE) {
+			fread(fileContent, len, 1, fi);
+
+			for (unsigned int idx = 0; idx < len; ++idx) {
+				c = fileContent[idx];
+
+				for (int i = 0; i < *(cnt + c); ++i) {
+					*(temp + index++) = *(*(bitCode + c) + i);
+
+					if (index % 8 == 0) {
+						unsigned char ch = 0;
+
+						for (int j = 0; j < 8; ++j)
+							if (temp[j])
+								ch |= (128 >> j);
+
+						compress[d++] = ch;
+						index = 0;
+
+						if (d == MAX_BYTE) {
+							fwrite(compress, d, 1, fo);
+							d = 0;
+						}
+					}
 				}
 			}
 		}
 
-		len -= MAX_BYTE;
-	}
+		if (padding != 0) {
+			//Cộng các kí tự 0 cho đủ chia hết cho 8
+			for (int i = 0; i < padding; ++i) {
+				temp[index++] = 0;
+			}
 
-	if (len > 0 && len < MAX_BYTE) {
-		fread(fileContent, len, 1, fi);
+			unsigned char ch = 0;
 
-		for (unsigned int idx = 0; idx < len; ++idx) {
-			c = fileContent[idx];
+			for (int j = 0; j < 8; ++j)
+				if (temp[j])
+					ch |= (128 >> j);
 
-			for (int i = 0; i < *(cnt + c); ++i) {
-				*(temp + index++) = *(*(bitCode + c) + i);
+			compress[d++] = ch;
 
-				if (index % 8 == 0) {
-					unsigned char ch = 0;
-
-					for (int j = 0; j < 8; ++j)
-						if (temp[j])
-							ch |= (128 >> j);
-
-					compress[d++] = ch;
-					index = 0;
-
-					if (d == MAX_BYTE) {
-						fwrite(compress, d, 1, fo);
-						d = 0;
-					}
-				}
+			if (d == MAX_BYTE) {
+				fwrite(compress, d, 1, fo);
+				d = 0;
 			}
 		}
-	}
 
-	if (padding != 0) {
-		//Cộng các kí tự 0 cho đủ chia hết cho 8
-		for (int i = 0; i < padding; ++i) {
-			temp[index++] = 0;
-		}
-
-		unsigned char ch = 0;
-
-		for (int j = 0; j < 8; ++j)
-			if (temp[j])
-				ch |= (128 >> j);
-
-		compress[d++] = ch;
-
-		if (d == MAX_BYTE) {
+		if (d > 0)
 			fwrite(compress, d, 1, fo);
-			d = 0;
-		}
 	}
-
-	if (d > 0)
-		fwrite(compress, d, 1, fo);
 
 	fclose(fo);
 	fclose(fi);
@@ -283,7 +286,9 @@ void File::writeFileDecode(FILE* fi, char padding) {
 	priority_queue<HuffNode*, vector<HuffNode*>, Compare> minHeap = huffTree.getMinHeap();
 
 	//Node gốc
-	HuffNode* curr = minHeap.top();
+	HuffNode* curr = NULL;
+	if (minHeap.size() != 0)
+		curr = minHeap.top();
 
 	unsigned char* arrByte = new unsigned char[MAX_BYTE];
 
@@ -293,88 +298,90 @@ void File::writeFileDecode(FILE* fi, char padding) {
 
 	unsigned long long d = 0;
 
-	//Đọc lại file cần nén và thay thành mã code tương ứng
-	while (len >= MAX_BYTE) {
-		fread(arrByte, MAX_BYTE, 1, fi);
+	if (len > 0) {
+		//Đọc lại file cần nén và thay thành mã code tương ứng
+		while (len >= MAX_BYTE) {
+			fread(arrByte, MAX_BYTE, 1, fi);
 
-		for (unsigned int idx = 0; idx < MAX_BYTE; ++idx) {
-			for (int j = 0; j < 8; ++j) {
-				if ((arrByte[idx] >> (7 - j)) & 1)
+			for (unsigned int idx = 0; idx < MAX_BYTE; ++idx) {
+				for (int j = 0; j < 8; ++j) {
+					if ((arrByte[idx] >> (7 - j)) & 1)
+						curr = curr->right;
+					else
+						curr = curr->left;
+
+					if (curr->left == NULL && curr->right == NULL) {
+						//fwrite(&(curr->c), sizeof(curr->c), 1, fo);
+
+						fileContent[d++] = curr->c;
+
+						if (d == MAX_BYTE) {
+							fwrite(fileContent, MAX_BYTE, 1, fo);
+							d = 0;
+						}
+
+						curr = minHeap.top();
+					}
+				}
+			}
+
+			len -= MAX_BYTE;
+		}
+
+		if (d > 0)
+			fwrite(fileContent, d, 1, fo);
+		d = 0;
+
+		if (len > 1) {
+			fread(arrByte, len - 1, 1, fi);
+
+			for (unsigned int idx = 0; idx < len - 1; ++idx) {
+				for (int j = 0; j < 8; ++j) {
+					if ((arrByte[idx] >> (7 - j)) & 1)
+						curr = curr->right;
+					else
+						curr = curr->left;
+
+					if (curr->left == NULL && curr->right == NULL) {
+						//fwrite(&(curr->c), sizeof(curr->c), 1, fo);
+
+						fileContent[d++] = curr->c;
+
+						if (d == len - 1) {
+							fwrite(fileContent, len - 1, 1, fo);
+							d = 0;
+						}
+
+						curr = minHeap.top();
+					}
+				}
+			}
+		}
+
+		if (d > 0)
+			fwrite(fileContent, d, 1, fo);
+
+		unsigned char byte;
+		fread(&byte, 1, 1, fi);
+
+		if (huffTree.getFlag())
+			fwrite(&(curr->c), 1, 1, fo);
+
+		else
+			for (int j = 0; j < 8 - padding; ++j) {
+				if ((byte >> (7 - j)) & 1)
 					curr = curr->right;
 				else
 					curr = curr->left;
 
 				if (curr->left == NULL && curr->right == NULL) {
-					//fwrite(&(curr->c), sizeof(curr->c), 1, fo);
 
-					fileContent[d++] = curr->c;
-
-					if (d == MAX_BYTE) {
-						fwrite(fileContent, MAX_BYTE, 1, fo);
-						d = 0;
-					}
+					fwrite(&(curr->c), 1, 1, fo);
 
 					curr = minHeap.top();
 				}
 			}
-		}
-
-		len -= MAX_BYTE;
 	}
-
-	if (d > 0)
-		fwrite(fileContent, d, 1, fo);
-	d = 0;
-
-	if (len > 1) {
-		fread(arrByte, len - 1, 1, fi);
-
-		for (unsigned int idx = 0; idx < len - 1; ++idx) {
-			for (int j = 0; j < 8; ++j) {
-				if ((arrByte[idx] >> (7 - j)) & 1)
-					curr = curr->right;
-				else
-					curr = curr->left;
-
-				if (curr->left == NULL && curr->right == NULL) {
-					//fwrite(&(curr->c), sizeof(curr->c), 1, fo);
-
-					fileContent[d++] = curr->c;
-
-					if (d == len - 1) {
-						fwrite(fileContent, len - 1, 1, fo);
-						d = 0;
-					}
-
-					curr = minHeap.top();
-				}
-			}
-		}
-	}
-
-	if (d > 0)
-		fwrite(fileContent, d, 1, fo);
-
-	unsigned char byte;
-	fread(&byte, 1, 1, fi);
-
-	if (huffTree.getFlag())
-		fwrite(&(curr->c), 1, 1, fo);
-
-	else
-		for (int j = 0; j < 8 - padding; ++j) {
-			if ((byte >> (7 - j)) & 1)
-				curr = curr->right;
-			else
-				curr = curr->left;
-
-			if (curr->left == NULL && curr->right == NULL) {
-
-				fwrite(&(curr->c), 1, 1, fo);
-
-				curr = minHeap.top();
-			}
-		}
 
 	fclose(fo);
 
@@ -392,7 +399,8 @@ void File::process() {
 		huffTree.createMinHeap();
 
 		//Tạo mã code 
-		huffTree.setCharCode(huffTree.getMinHeap().top(), "");
+		if (huffTree.getMinHeap().size() != 0)
+			huffTree.setCharCode(huffTree.getMinHeap().top(), "");
 
 		//Ghi file nén
 		writeFileEncode();
@@ -409,7 +417,8 @@ void File::process() {
 		huffTree.createMinHeap();
 
 		//Tạo mã code
-		huffTree.setCharCode(huffTree.getMinHeap().top(), "");
+		if (huffTree.getMinHeap().size() != 0)
+			huffTree.setCharCode(huffTree.getMinHeap().top(), "");
 
 		//Ghi file nén
 		writeFileDecode(fi, padding);
