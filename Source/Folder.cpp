@@ -407,19 +407,24 @@ void Folder::uncompress(FILE* fileUnCompress) {
 		unsigned char byte;
 		fread(&byte, 1, 1, fileUnCompress);
 
-		for (int j = 0; j < 8 - padding; ++j) {
-			if ((byte >> (7 - j)) & 1)
-				curr = curr->right;
-			else
-				curr = curr->left;
-
-			if (curr->left == NULL && curr->right == NULL) {
-
-				fwrite(&(curr->c), 1, 1, file);
-
-				curr = minHeap.top();
-			}
+		if (huffTree.getFlag()) {
+			fwrite(&(curr->c), 1, 1, file);
 		}
+
+		else
+			for (int j = 0; j < 8 - padding; ++j) {
+				if ((byte >> (7 - j)) & 1)
+					curr = curr->right;
+				else
+					curr = curr->left;
+
+				if (curr->left == NULL && curr->right == NULL) {
+
+					fwrite(&(curr->c), 1, 1, file);
+
+					curr = minHeap.top();
+				}
+			}
 
 		fclose(file);
 

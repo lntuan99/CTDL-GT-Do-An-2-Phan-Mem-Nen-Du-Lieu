@@ -358,19 +358,23 @@ void File::writeFileDecode(FILE* fi, char padding) {
 	unsigned char byte;
 	fread(&byte, 1, 1, fi);
 
-	for (int j = 0; j < 8 - padding; ++j) {
-		if ((byte >> (7 - j)) & 1)
-			curr = curr->right;
-		else
-			curr = curr->left;
+	if (huffTree.getFlag())
+		fwrite(&(curr->c), 1, 1, fo);
 
-		if (curr->left == NULL && curr->right == NULL) {
+	else
+		for (int j = 0; j < 8 - padding; ++j) {
+			if ((byte >> (7 - j)) & 1)
+				curr = curr->right;
+			else
+				curr = curr->left;
 
-			fwrite(&(curr->c), 1, 1, fo);
+			if (curr->left == NULL && curr->right == NULL) {
 
-			curr = minHeap.top();
+				fwrite(&(curr->c), 1, 1, fo);
+
+				curr = minHeap.top();
+			}
 		}
-	}
 
 	fclose(fo);
 
