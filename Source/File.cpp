@@ -32,18 +32,18 @@ int File::getCompress() {
 void File::readFileEncode() {
 	//Mở file
 	FILE* fi = fopen(filePathIn.c_str(), "rb");
-	
+
 	if (fi == NULL) {
 		cout << "Cannot open this file to compress!! Please check your file and path file";
 		return;
 	}
-	
+
 	unsigned char c;
 	unsigned long long freq[256];
 
 	//Gán toàn bộ phần tử trong bảng tần số = 0
 	memset(freq, 0, 256 * sizeof(unsigned long long));
-	
+
 	//Đọc toàn bộ byte trong file nén
 	unsigned char* fileContent = new unsigned char[MAX_BYTE];
 
@@ -101,9 +101,9 @@ void File::writeFileEncode() {
 	for (int i = 0; i < 256; ++i)
 		* (cnt + i) = huffTree.getCharCode(i).length();
 
-	for (int i = 0; i < 256; ++i) 
+	for (int i = 0; i < 256; ++i)
 		bitSize += charFreq[i] * (*(cnt + i));
-	
+
 
 	//Ghi bảng tần số lên file nén
 	fwrite(charFreq, sizeof(unsigned long long) * 256, 1, fo);
@@ -121,7 +121,7 @@ void File::writeFileEncode() {
 			*(*(bitCode + i) + j) = *(*(code + i) + j) - '0';
 		}
 	}
-	
+
 	//Tính toán padding
 	char padding = 0;
 
@@ -133,7 +133,7 @@ void File::writeFileEncode() {
 	//Ghi padding và độ dài chuỗi bit đã cộng padding lên file nén
 	fwrite(&bitSize, sizeof(bitSize), 1, fo);
 	fwrite(&padding, sizeof(padding), 1, fo);
-	
+
 	//Duyệt lại file để thay thế các kí tự thành mã code tương ứng
 	FILE* fi = fopen(filePathIn.c_str(), "rb");
 
@@ -169,7 +169,7 @@ void File::writeFileEncode() {
 					for (int j = 0; j < 8; ++j)
 						if (temp[j])
 							ch |= (128 >> j);
-					
+
 					compress[d++] = ch;
 					index = 0;
 
@@ -181,7 +181,7 @@ void File::writeFileEncode() {
 				}
 			}
 		}
-		
+
 		len -= MAX_BYTE;
 	}
 
@@ -190,17 +190,17 @@ void File::writeFileEncode() {
 
 		for (unsigned int idx = 0; idx < len; ++idx) {
 			c = fileContent[idx];
-			
+
 			for (int i = 0; i < *(cnt + c); ++i) {
 				*(temp + index++) = *(*(bitCode + c) + i);
-				
+
 				if (index % 8 == 0) {
 					unsigned char ch = 0;
 
 					for (int j = 0; j < 8; ++j)
 						if (temp[j])
 							ch |= (128 >> j);
-					
+
 					compress[d++] = ch;
 					index = 0;
 
@@ -224,7 +224,7 @@ void File::writeFileEncode() {
 		for (int j = 0; j < 8; ++j)
 			if (temp[j])
 				ch |= (128 >> j);
-		
+
 		compress[d++] = ch;
 
 		if (d == MAX_BYTE) {
@@ -237,6 +237,7 @@ void File::writeFileEncode() {
 		fwrite(compress, d, 1, fo);
 
 	fclose(fo);
+	fclose(fi);
 
 	delete[] fileContent;
 	delete[] cnt;
@@ -252,7 +253,7 @@ void File::writeFileEncode() {
 }
 
 void File::readFileDecode(FILE*& fi, char& padding) {
-	fi = fopen(filePathIn.c_str() , "rb");
+	fi = fopen(filePathIn.c_str(), "rb");
 
 	if (fi == NULL) {
 		cout << "Cannot open this file extract. Please check your file and file path";
@@ -351,12 +352,12 @@ void File::writeFileDecode(FILE* fi, char padding) {
 		}
 	}
 
-	if (d > 0) 
+	if (d > 0)
 		fwrite(fileContent, d, 1, fo);
 
 	unsigned char byte;
 	fread(&byte, 1, 1, fi);
-	
+
 	for (int j = 0; j < 8 - padding; ++j) {
 		if ((byte >> (7 - j)) & 1)
 			curr = curr->right;
@@ -370,7 +371,7 @@ void File::writeFileDecode(FILE* fi, char padding) {
 			curr = minHeap.top();
 		}
 	}
-	
+
 	fclose(fo);
 
 	delete[] arrByte;
@@ -405,7 +406,7 @@ void File::process() {
 
 		//Tạo mã code
 		huffTree.setCharCode(huffTree.getMinHeap().top(), "");
-		
+
 		//Ghi file nén
 		writeFileDecode(fi, padding);
 

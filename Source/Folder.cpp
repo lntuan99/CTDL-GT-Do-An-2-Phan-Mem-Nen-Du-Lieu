@@ -19,7 +19,7 @@ Folder::Folder(string path) {
 
 void Folder::getFolderPath() {
 	string path;
-	
+
 	//Lấy đường dẫn đến folder cần nén
 	rewind(stdin);
 	cout << "Enter file path to the folder needs to be compressed: ";
@@ -59,7 +59,7 @@ void Folder::readFolder() {
 					++nFolder;
 				}
 			}
-			
+
 		}
 		closedir(dir);
 	}
@@ -67,7 +67,7 @@ void Folder::readFolder() {
 
 void Folder::writeHeader(FILE* fo) {
 	//Lấy ra tên folder
-	char name[50];
+	char name[1024];
 	int i = folderPath.length() - 1;
 	int j = 0;
 	while (folderPath[i] != '\\') {
@@ -77,8 +77,8 @@ void Folder::writeHeader(FILE* fo) {
 	strrev(name);
 
 	//Ghi tên folder lên file nén
-	fwrite(&name, 50, 1, fo);
-	
+	fwrite(&name, 1024, 1, fo);
+
 	//Ghi số lượng file trong folder lên file nén
 	fwrite(&nFile, sizeof(nFile), 1, fo);
 
@@ -93,15 +93,15 @@ void Folder::compress(FILE* fo) {
 		memset(charFreq, 0, 256 * sizeof(unsigned long long));
 
 		FILE* file = fopen((folderPath + "\\" + s).c_str(), "rb");
-	
+
 		unsigned long long len = s.length();
-		char name[50];
+		char name[1024];
 
 		for (int i = 0; i < len; ++i)
 			name[i] = s[i];
 
 		name[len] = '\0';
-		fwrite(&name, 50, 1, fo);
+		fwrite(&name, 1024, 1, fo);
 
 		//Đọc toàn bộ byte trong file nén
 		unsigned char* fileContent = new unsigned char[MAX_BYTE];
@@ -137,7 +137,7 @@ void Folder::compress(FILE* fo) {
 		int* cnt = new int[256];
 
 		for (int i = 0; i < 256; ++i)
-			*(cnt + i) = huffTree.getCharCode(i).length();
+			* (cnt + i) = huffTree.getCharCode(i).length();
 
 		char** code = huffTree.getAllCharCode();
 
@@ -153,12 +153,12 @@ void Folder::compress(FILE* fo) {
 
 		unsigned long long bitSize = 0;
 
-		for (int i = 0; i < 256; ++i) 
+		for (int i = 0; i < 256; ++i)
 			bitSize += charFreq[i] * (*(cnt + i));
-		
+
 		fwrite(charFreq, sizeof(unsigned long long) * 256, 1, fo);
 
- 		char padding = 0;
+		char padding = 0;
 
 		while (bitSize % 8 != 0) {
 			++bitSize;
@@ -174,13 +174,11 @@ void Folder::compress(FILE* fo) {
 
 		bool temp[8];
 
-		fseek(file, 0, SEEK_END);
-
 		len = ftell(file);
 		unsigned char* compress = new unsigned char[MAX_BYTE];
 		unsigned long long d = 0;
 
-		fseek(file , 0, SEEK_SET);
+		fseek(file, 0, SEEK_SET);
 
 		//Đọc lại file cần nén và thay thành mã code tương ứng
 		while (len >= MAX_BYTE) {
@@ -266,6 +264,8 @@ void Folder::compress(FILE* fo) {
 		if (d != 0)
 			fwrite(compress, d, 1, fo);
 
+		fclose(file);
+
 		delete[] fileContent;
 		delete[] cnt;
 		delete[] compress;
@@ -277,7 +277,7 @@ void Folder::compress(FILE* fo) {
 		delete[] code;
 		delete[] bitCode;
 	}
-	
+
 	//Đệ quy đọc folder trong folder r ghi lên file nén
 	for (auto folder : listFolder) {
 		folder->readFolder();
@@ -293,11 +293,11 @@ void Folder::getFileUnCompress() {
 }
 
 void Folder::uncompress(FILE* fileUnCompress) {
-	char folderName[50];
+	char folderName[1024];
 	int nFile, nFolder;
-	
+
 	//Đọc tên folder, số lượng file trong folder, số lượng folder trong folder
-	fread(&folderName, 50, 1, fileUnCompress);
+	fread(&folderName, 1024, 1, fileUnCompress);
 	fread(&nFile, sizeof(nFile), 1, fileUnCompress);
 	fread(&nFolder, sizeof(nFolder), 1, fileUnCompress);
 
@@ -306,15 +306,15 @@ void Folder::uncompress(FILE* fileUnCompress) {
 
 	//Giải nén từng file trong folder
 	for (int i = 0; i < nFile; ++i) {
-		char name[50];
-		fread(&name, 50, 1, fileUnCompress);
-		
+		char name[1024];
+		fread(&name, 1024, 1, fileUnCompress);
+
 		FILE* file = fopen((uncompressPathFile + "\\" + folderName + "\\" + name).c_str(), "wb");
 
 		unsigned long long freq[256];
-	
+
 		fread(freq, sizeof(unsigned long long) * 256, 1, fileUnCompress);
-	
+
 		//Tạo cây huffman
 		HuffmanTree huffTree;
 
@@ -420,20 +420,20 @@ void Folder::uncompress(FILE* fileUnCompress) {
 				curr = minHeap.top();
 			}
 		}
-			
+
 		fclose(file);
 
 		delete[] arrByte;
 		delete[] fileContent;
 	}
-	
+
 	//Đệ quy để giải nén folder trong folder
 	string temp = uncompressPathFile;
 	uncompressPathFile += "\\";
 	uncompressPathFile += folderName;
 
 	for (int i = 0; i < nFolder; ++i) {
-		uncompress(fileUnCompress); 
+		uncompress(fileUnCompress);
 	}
 
 	uncompressPathFile = temp;
